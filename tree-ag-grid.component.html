@@ -1,0 +1,15 @@
+<ag-grid-angular
+  class="ag-theme-alpine"
+  [columnDefs]="columnDefs"
+  [defaultColDef]="defaultColDef"
+  [autoGroupColumnDef]="autoGroupColumnDef"
+  [rowModelType]="rowModelType"
+  [cacheBlockSize]="cacheBlockSize"
+  [isServerSideGroup]="isServerSideGroup"
+  [getServerSideGroupKey]="getServerSideGroupKey"
+  [isServerSideGroupOpenByDefault]="isServerSideGroupOpenByDefault"
+  [tooltipShowDelay]="tooltipShowDelay"
+  (gridReady)="onGridReady($event)"
+  (rowGroupOpened)="onRowGroupOpened($event)"
+  [rowData]="rowData">
+</ag-grid-angular>

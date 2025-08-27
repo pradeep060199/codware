@@ -1,0 +1,46 @@
+:host {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+ag-grid-angular {
+  width: 100%;
+  height: 100%;
+}
+
+// Highlight searched items
+.ag-row-selected {
+  background-color: #e3f2fd !important;
+}
+
+// Custom styling for searched items
+.searched-item {
+  background-color: #fff3cd !important;
+  border-left: 3px solid #ffc107;
+}
+
+// Group row styling
+.ag-row-group {
+  font-weight: 600;
+}
+
+// Leaf row styling
+.ag-row-leaf {
+  font-weight: normal;
+}
+
+// Right aligned cells
+.rightAligned {
+  text-align: right !important;
+}
+
+// Center aligned cells
+.ag-cell-center {
+  text-align: center !important;
+}
+
+// Left aligned cells (default)
+.ag-cell-left {
+  text-align: left !important;
+}
