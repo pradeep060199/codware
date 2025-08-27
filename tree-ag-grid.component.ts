@@ -45,12 +45,35 @@ export class TreeAgGridComponent {
   ) => boolean = (params: IsServerSideGroupOpenByDefaultParams) => {
     let searchValue:string | null = this.rendererDataService.getSearchedValue();
     if (searchValue && searchValue.trim() !== '') {
-      // Always open groups when searching to allow finding child items
+      // Check if the current item is a group (has children)
       if (params.data.group) {
+        // Check if this group itself matches the search criteria
+        if (this.isItemMatchingSearch(params.data, searchValue)) {
+          // If the group itself matches search, don't open it (don't show its children)
+          return false;
+        }
+        
+        // Check if any of the group's fields contain the search value
+        for (const field in params.data) {
+          const fieldValue = params.data[field];
+          
+          if (fieldValue && typeof fieldValue === 'string' && fieldValue.toLowerCase().includes(searchValue.toLowerCase())) {
+            // If the group contains the search value, don't open it
+            return false;
+          }
+          if (fieldValue && typeof fieldValue === 'number' && fieldValue.toString().toLowerCase().includes(searchValue.toLowerCase())) {
+            // If the group contains the search value, don't open it
+            return false;
+          }
+        }
+        
+        // For now, open groups that might contain searched children
+        // This will be refined by the search tracking logic
         return true;
+      } else {
+        // For leaf items, don't open them (they don't have children)
+        return false;
       }
-      // For leaf items, don't open them (they don't have children)
-      return false;
     }
     searchValue = null;
     return false;
@@ -78,6 +101,7 @@ export class TreeAgGridComponent {
   clickedRowData: any = null;
   searchValue: string | null= '';
   searchedItems: Set<string> = new Set(); // Track searched items
+  searchedItemParents: Set<string> = new Set(); // Track parents of searched items
 
   constructor(
     private rendererService: RendererService,
@@ -108,16 +132,17 @@ export class TreeAgGridComponent {
       console.log('here searchValue', value)
       this.searchValue = value;
       this.searchedItems.clear(); // Clear previous search tracking
+      this.searchedItemParents.clear(); // Clear previous parent tracking
       
       if (this.gridApi) {
         if (value && value.trim() !== '') {
-          // Refresh the grid to apply the new isServerSideGroupOpenByDefault logic
+          // First, do a full refresh to find all searched items and their parents
           this.gridApi.refreshServerSide({ purge: true });
           
           // Wait for the grid to finish loading data, then select and scroll to searched items
           setTimeout(() => {
             this.selectAndScrollToSearchedItems();
-          }, 500);
+          }, 1000); // Increased timeout to ensure data is loaded
         } else {
           // When search is cleared, refresh to close all groups and clear selections
           this.clearSelections();
@@ -356,6 +381,56 @@ export class TreeAgGridComponent {
         }
       }
     });
+    
+    // Close unnecessary groups after search
+    this.closeUnnecessaryGroups();
+  }
+
+  // Method to close groups that don't contain searched items
+  private closeUnnecessaryGroups(): void {
+    if (!this.gridApi) return;
+    
+    this.gridApi.forEachNode((node) => {
+      if (node.expanded && node.data && node.data.group) {
+        // Check if this group contains any searched items
+        const hasSearchedChildren = this.hasSearchedChildren(node);
+        
+        if (!hasSearchedChildren) {
+          // Close the group if it doesn't contain searched items
+          node.setExpanded(false);
+        }
+      }
+    });
+  }
+
+  // Helper method to check if a node has searched children
+  private hasSearchedChildren(node: any): boolean {
+    // Check if any of the node's children are searched items
+    let hasSearchedChildren = false;
+    
+    // Get all child nodes
+    const childNodes: any[] = [];
+    this.getAllChildNodes(node, childNodes);
+    
+    // Check if any child is a searched item
+    for (const childNode of childNodes) {
+      if (childNode.data && this.searchedItems.has(childNode.data.id)) {
+        hasSearchedChildren = true;
+        break;
+      }
+    }
+    
+    return hasSearchedChildren;
+  }
+
+  // Helper method to get all child nodes recursively
+  private getAllChildNodes(node: any, childNodes: any[]): void {
+    if (node.childrenAfterGroup) {
+      for (const child of node.childrenAfterGroup) {
+        childNodes.push(child);
+        this.getAllChildNodes(child, childNodes);
+      }
+    }
   }
 
   // Method to clear all selections
@@ -365,12 +440,14 @@ export class TreeAgGridComponent {
     }
   }
 
+
+
 }
 
 function generateData(generatedServerData: any[], currentObject: any) {
   const generatedData = {
     getData: (request: IServerSideGetRowsRequest) => {
-       async function extractRowsFromData(groupKeys: string[], data: any[]) {
+       async function extractRowsFromData(groupKeys: string[], data: any[], parentId?: string) {
         if (groupKeys.length === 0) {
           return data.map(function (d: any) {
             let rootData = d.data ? d.data: d;
@@ -401,10 +478,15 @@ function generateData(generatedServerData: any[], currentObject: any) {
             currentObject.gridApi.sizeColumnsToFit()
             displayObject["id"] = rootData?.id;
             displayObject["correlationId"] = rootData?.correlationId;
+            displayObject["parentId"] = parentId; // Track parent ID
             
             // Mark searched items for tracking
             if (currentObject.searchValue && currentObject.isItemMatchingSearch(displayObject, currentObject.searchValue)) {
               currentObject.markAsSearched(displayObject.id);
+              // If this item has a parent, mark the parent for opening
+              if (parentId) {
+                currentObject.searchedItemParents.add(parentId);
+              }
             }
             
             return displayObject
@@ -436,13 +518,13 @@ function generateData(generatedServerData: any[], currentObject: any) {
                 }
               }
 
-
                 const response = await currentObject.rendererService.makeRequest(currentObject.config.api).toPromise();
                 data[i]["childrens"] = response.data.content;
             }
             return extractRowsFromData(
               groupKeys.slice(1),
               data[i].childrens.slice(),
+              data[i].data?.id // Pass the current parent ID
             );
           }
         }
