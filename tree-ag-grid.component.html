@@ -5,11 +5,13 @@
   [autoGroupColumnDef]="autoGroupColumnDef"
   [rowModelType]="rowModelType"
   [cacheBlockSize]="cacheBlockSize"
+  [rowSelection]="rowSelection"
   [isServerSideGroup]="isServerSideGroup"
   [getServerSideGroupKey]="getServerSideGroupKey"
   [isServerSideGroupOpenByDefault]="isServerSideGroupOpenByDefault"
   [tooltipShowDelay]="tooltipShowDelay"
   (gridReady)="onGridReady($event)"
   (rowGroupOpened)="onRowGroupOpened($event)"
+  (modelUpdated)="onModelUpdated()"
   [rowData]="rowData">
 </ag-grid-angular>

@@ -20,6 +20,18 @@ ag-grid-angular {
   border-left: 3px solid #ffc107;
 }
 
+// Enhanced styling for searched and selected items
+.ag-row-selected .ag-cell {
+  background-color: #e3f2fd !important;
+}
+
+// Highlight searched items with better visibility
+.ag-cell-highlight {
+  background-color: #fff3cd !important;
+  border-left: 3px solid #ffc107 !important;
+  font-weight: bold !important;
+}
+
 // Group row styling
 .ag-row-group {
   font-weight: 600;

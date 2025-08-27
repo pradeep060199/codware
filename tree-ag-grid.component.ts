@@ -28,6 +28,9 @@ export class TreeAgGridComponent {
     suppressMenu: true,
   };
 
+  // Enable row selection
+  public rowSelection = 'multiple';
+
   public autoGroupColumnDef: ColDef = {
     field: "",
     headerName: '',
@@ -42,36 +45,12 @@ export class TreeAgGridComponent {
   ) => boolean = (params: IsServerSideGroupOpenByDefaultParams) => {
     let searchValue:string | null = this.rendererDataService.getSearchedValue();
     if (searchValue && searchValue.trim() !== '') {
-      // Check if the current item is a group (has children)
+      // Always open groups when searching to allow finding child items
       if (params.data.group) {
-        // Check if the current group key exactly matches the search value
-        const groupKey = params.data[this.groupKey];
-        if (groupKey && groupKey.toString().toLowerCase() === searchValue.toLowerCase()) {
-          // If it's a group and matches search, open it to show children
-          return true;
-        }
-        
-        // Check if any field in the group data contains the search value
-        for (const field in params.data) {
-          const fieldValue = params.data[field];
-          
-          if (fieldValue && typeof fieldValue === 'string' && fieldValue.toLowerCase().includes(searchValue.toLowerCase())) {
-            // If group contains search value, open it to show children
-            return true;
-          }
-          if (fieldValue && typeof fieldValue === 'number' && fieldValue.toString().toLowerCase().includes(searchValue.toLowerCase())) {
-            // If group contains search value, open it to show children
-            return true;
-          }
-        }
-        
-        // If this is a group and we haven't found a direct match, still open it 
-        // to allow searching through children (this ensures parent groups are opened)
         return true;
-      } else {
-        // For leaf items (no children), don't open them
-        return false;
       }
+      // For leaf items, don't open them (they don't have children)
+      return false;
     }
     searchValue = null;
     return false;
@@ -134,8 +113,14 @@ export class TreeAgGridComponent {
         if (value && value.trim() !== '') {
           // Refresh the grid to apply the new isServerSideGroupOpenByDefault logic
           this.gridApi.refreshServerSide({ purge: true });
+          
+          // Wait for the grid to finish loading data, then select and scroll to searched items
+          setTimeout(() => {
+            this.selectAndScrollToSearchedItems();
+          }, 500);
         } else {
-          // When search is cleared, refresh to close all groups
+          // When search is cleared, refresh to close all groups and clear selections
+          this.clearSelections();
           this.gridApi.refreshServerSide({ purge: true });
         }
       }
@@ -161,6 +146,32 @@ export class TreeAgGridComponent {
     column["field"] = gridColumn.colId;
     column["hide"] = gridColumn.hide;
     column["tooltipValueGetter"]= this.toolTipValueGetter;
+    
+    // Add cell styling function to highlight searched items
+    column["cellStyle"] = (params: any) => {
+      let baseStyle: any = {};
+      
+      // Apply alignment
+      if(gridColumn?.align && gridColumn?.align ==='right'){
+        baseStyle['text-align'] = 'right';
+      }else if(gridColumn?.align && gridColumn?.align ==='center'){
+        baseStyle['text-align'] = 'center';
+      }else{
+        baseStyle['text-align'] = 'left';
+      }
+      
+      // Highlight searched items
+      if (this.searchValue && this.searchValue.trim() !== '' && params.data) {
+        if (this.isItemMatchingSearch(params.data, this.searchValue)) {
+          baseStyle['background-color'] = '#fff3cd';
+          baseStyle['border-left'] = '3px solid #ffc107';
+          baseStyle['font-weight'] = 'bold';
+        }
+      }
+      
+      return baseStyle;
+    };
+    
     if (this.groupCols) {
       if (gridColumn.colId === this.groupCols.column) {
         this.groupCols = this.groupCols.groupByColumnName;
@@ -175,13 +186,6 @@ export class TreeAgGridComponent {
     }
     column["headerComponentParams"] = {
       template: `<span class="ag-header-cell-label">${this.translate.instant(gridColumn.resourceKey)}</span>`,
-    }
-    if(gridColumn?.align && gridColumn?.align ==='right'){
-      column["type"]= 'rightAligned';
-    }else if(gridColumn?.align && gridColumn?.align ==='center'){
-      column["cellStyle"]= { 'text-align': 'center' }
-    }else{
-      column["cellStyle"]= { 'text-align': 'left' }
     }
     return column;
   }
@@ -270,6 +274,16 @@ export class TreeAgGridComponent {
     this.searchValue = null;
   }
 
+  // Handle when data is loaded in the grid
+  onModelUpdated() {
+    // If there's an active search, select and scroll to searched items
+    if (this.searchValue && this.searchValue.trim() !== '') {
+      setTimeout(() => {
+        this.selectAndScrollToSearchedItems();
+      }, 100);
+    }
+  }
+
   updateDisplayUriParam(paramsArray: any[]): void {
     const index = paramsArray.findIndex(param => param.key === 'data.displayUri');
     if (index !== -1) {
@@ -324,6 +338,31 @@ export class TreeAgGridComponent {
   // Method to mark an item as searched (for tracking purposes)
   private markAsSearched(itemId: string): void {
     this.searchedItems.add(itemId);
+  }
+
+  // Method to select and scroll to searched items
+  private selectAndScrollToSearchedItems(): void {
+    if (!this.searchValue || !this.gridApi) return;
+    
+    // Find and select all nodes that match the search criteria
+    this.gridApi.forEachNode((node) => {
+      if (node.data && this.isItemMatchingSearch(node.data, this.searchValue)) {
+        // Select the node
+        node.setSelected(true);
+        
+        // Scroll to the first matched item
+        if (this.searchedItems.has(node.data.id)) {
+          this.gridApi.ensureIndexVisible(node.rowIndex);
+        }
+      }
+    });
+  }
+
+  // Method to clear all selections
+  private clearSelections(): void {
+    if (this.gridApi) {
+      this.gridApi.deselectAll();
+    }
   }
 
 }
